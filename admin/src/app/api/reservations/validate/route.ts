@@ -1,0 +1,91 @@
+import { createServiceClient } from '@/lib/supabase/server';
+import { getCurrentProfile } from '@/lib/auth';
+import { NextResponse } from 'next/server';
+
+// This endpoint is used by kiosks to validate reservation numbers during check-in
+export async function POST(request: Request) {
+  try {
+    const profile = await getCurrentProfile();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { reservationNumber, projectId } = await request.json();
+
+    if (!reservationNumber) {
+      return NextResponse.json({ error: 'Reservation number is required' }, { status: 400 });
+    }
+
+    const targetProjectId = profile.project_id || projectId;
+
+    if (!targetProjectId) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    }
+
+    const supabase = await createServiceClient();
+
+    // Look up the reservation
+    const { data: reservation, error } = await supabase
+      .from('reservations')
+      .select('*, room_type:room_types(*)')
+      .eq('project_id', targetProjectId)
+      .eq('reservation_number', reservationNumber)
+      .single();
+
+    if (error || !reservation) {
+      return NextResponse.json({
+        valid: false,
+        error: '예약을 찾을 수 없습니다. 예약번호를 확인해 주세요.',
+      });
+    }
+
+    // Check if reservation is already checked in
+    if (reservation.status === 'checked_in') {
+      return NextResponse.json({
+        valid: false,
+        error: '이미 체크인된 예약입니다.',
+      });
+    }
+
+    // Check if reservation is cancelled
+    if (reservation.status === 'cancelled') {
+      return NextResponse.json({
+        valid: false,
+        error: '취소된 예약입니다.',
+      });
+    }
+
+    // Check if check-in date is today or in the past (allow early check-in on the day of)
+    const today = new Date().toISOString().split('T')[0];
+    const checkInDate = reservation.check_in_date;
+
+    if (checkInDate > today) {
+      return NextResponse.json({
+        valid: false,
+        error: `체크인 날짜가 아직 되지 않았습니다. (체크인 날짜: ${checkInDate})`,
+      });
+    }
+
+    // Reservation is valid
+    return NextResponse.json({
+      valid: true,
+      reservation: {
+        id: reservation.id,
+        reservationNumber: reservation.reservation_number,
+        guestName: reservation.guest_name,
+        guestPhone: reservation.guest_phone,
+        guestEmail: reservation.guest_email,
+        guestCount: reservation.guest_count,
+        checkInDate: reservation.check_in_date,
+        checkOutDate: reservation.check_out_date,
+        roomNumber: reservation.room_number,
+        roomType: reservation.room_type,
+        source: reservation.source,
+      },
+    });
+  } catch (error) {
+    console.error('Error validating reservation:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

@@ -1,0 +1,83 @@
+export type UserRole = 'super_admin' | 'project_admin' | 'kiosk';
+export type KioskStatus = 'online' | 'offline' | 'busy' | 'error';
+export type VoiceCallCallerType = 'kiosk' | 'manager';
+
+export interface Project {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  settings: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Profile {
+  id: string;
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  role: UserRole;
+  project_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  project?: Project;
+}
+
+export interface Kiosk {
+  id: string;
+  project_id: string;
+  profile_id: string | null;
+  name: string;
+  location: string | null;
+  status: KioskStatus;
+  current_screen: string;
+  current_session_id: string | null;
+  last_seen: string | null;
+  settings: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  project?: Project;
+  profile?: Profile;
+}
+
+export interface KioskContent {
+  id: string;
+  project_id: string;
+  content_key: string;
+  content_value: string;
+  language: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VideoSession {
+  id: string;
+  kiosk_id: string;
+  project_id: string;
+  staff_user_id: string | null;
+  room_name: string;
+  status: 'waiting' | 'connected' | 'ended';
+  caller_type: VoiceCallCallerType;
+  started_at: string;
+  ended_at: string | null;
+  notes: string | null;
+  kiosk?: Kiosk;
+}
+
+export interface CheckinSession {
+  id: string;
+  kiosk_id: string;
+  project_id: string;
+  guest_phone: string | null;
+  guest_email: string | null;
+  guest_count: number;
+  room_number: string | null;
+  status: 'in_progress' | 'completed' | 'abandoned';
+  current_step: string | null;
+  data: Record<string, unknown>;
+  started_at: string;
+  completed_at: string | null;
+}
